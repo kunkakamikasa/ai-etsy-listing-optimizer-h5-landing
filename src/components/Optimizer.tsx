@@ -1,9 +1,12 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useSectionImpression } from '../hooks/useIntersectionObserver';
 import {
   trackCtaClick,
   trackOptimizeAttempt,
+  trackSampleRunView,
   trackSectionImpression,
+  trackStepSelectProductType,
+  trackWaitlistSubmit,
 } from '../utils/analytics';
 
 const STOPWORDS = new Set([
@@ -12,20 +15,27 @@ const STOPWORDS = new Set([
   'you','your','our','we','us','i','my','me','so','very','really','just','more','most',
 ]);
 
+const PRODUCT_TYPES = [
+  { id: 'jewelry', label: 'Jewelry' },
+  { id: 'printables', label: 'Printables' },
+  { id: 'home_decor', label: 'Home decor' },
+  { id: 'craft_supplies', label: 'Craft supplies' },
+  { id: 'other', label: 'Other' },
+] as const;
+
+type ProductTypeId = typeof PRODUCT_TYPES[number]['id'];
+
 interface OptimizedListing {
   title: string;
   tags: string[];
   description: string;
+  product_type: ProductTypeId;
 }
 
-function optimizeLocally(input: string): OptimizedListing {
+function optimizeLocally(input: string, productType: ProductTypeId): OptimizedListing {
   const trimmed = input.trim();
   if (!trimmed) {
-    return {
-      title: '',
-      tags: [],
-      description: '',
-    };
+    return { title: '', tags: [], description: '', product_type: productType };
   }
 
   const words = trimmed
@@ -40,12 +50,20 @@ function optimizeLocally(input: string): OptimizedListing {
 
   const keyTerms = ranked.slice(0, 6);
   const titleLead = keyTerms.slice(0, 3).map(capitalize).join(' ');
-  const titleTail = ['Personalized Gift', 'Handmade', 'Custom Design'].join(' | ');
-  const title = `${titleLead} | ${titleTail}`.slice(0, 140);
+
+  const productTail: Record<ProductTypeId, string> = {
+    jewelry: 'Personalized Gift | Handmade Jewelry | Custom Design',
+    printables: 'Printable Wall Art | Digital Download | Instant Print',
+    home_decor: 'Home Decor | Handmade Accent | Cozy Living',
+    craft_supplies: 'Craft Supply | DIY Kit | Maker Friendly',
+    other: 'Personalized Gift | Handmade | Custom Design',
+  };
+
+  const title = `${titleLead} | ${productTail[productType]}`.slice(0, 140);
 
   const tagPool = [...new Set([
     ...keyTerms,
-    `${keyTerms[0] ?? 'custom'} gift`,
+    `${keyTerms[0] ?? 'custom'} ${productType.replace('_', ' ')}`,
     `${keyTerms[0] ?? 'unique'} idea`,
     'personalized gift',
     'handmade gift',
@@ -53,15 +71,12 @@ function optimizeLocally(input: string): OptimizedListing {
     'gift for her',
     'gift for him',
     'unique gift',
-    'best seller',
-    'trending',
-    'new arrival',
     'made in usa',
   ])].filter(Boolean);
   const tags = tagPool.slice(0, 13);
 
   const description = [
-    `Looking for a ${keyTerms[0] ?? 'unique'} that actually feels personal? This listing is rewritten to match how Etsy shoppers search and click.`,
+    `Looking for a ${keyTerms[0] ?? 'unique'} ${productType.replace('_', ' ')} that actually feels personal? This rewrite is structured to match how Etsy shoppers search and click.`,
     '',
     'Why buyers love it:',
     `• Designed around ${keyTerms.slice(0, 3).join(', ') || 'your idea'}`,
@@ -71,7 +86,7 @@ function optimizeLocally(input: string): OptimizedListing {
     'Need a custom version? Send us a message — we usually reply within a few hours.',
   ].join('\n');
 
-  return { title, tags, description };
+  return { title, tags, description, product_type: productType };
 }
 
 function capitalize(word: string) {
@@ -83,15 +98,29 @@ const SAMPLE = `Custom name necklace gold plated handmade jewelry for women. Bir
 export default function Optimizer() {
   const [input, setInput] = useState('');
   const [submitted, setSubmitted] = useState(false);
+  const [productType, setProductType] = useState<ProductTypeId>('jewelry');
+  const [waitlistEmail, setWaitlistEmail] = useState('');
+  const [waitlistError, setWaitlistError] = useState<string | null>(null);
+  const [waitlistDone, setWaitlistDone] = useState(false);
+
   const ref = useSectionImpression<HTMLElement>(() => trackSectionImpression('optimizer'));
 
-  const result = useMemo(() => (submitted ? optimizeLocally(input) : null), [submitted, input]);
+  const result = useMemo(
+    () => (submitted ? optimizeLocally(input, productType) : null),
+    [submitted, input, productType],
+  );
+
+  useEffect(() => {
+    if (result && result.title) {
+      trackSampleRunView({ product_type: productType });
+    }
+  }, [result, productType]);
 
   const handleSubmit = () => {
     if (!input.trim()) return;
     setSubmitted(true);
-    trackOptimizeAttempt('submit', { length: input.length });
-    setTimeout(() => trackOptimizeAttempt('render'), 0);
+    trackOptimizeAttempt('submit', { length: input.length, product_type: productType });
+    setTimeout(() => trackOptimizeAttempt('render', { product_type: productType }), 0);
   };
 
   const handleSample = () => {
@@ -107,66 +136,169 @@ export default function Optimizer() {
     trackCtaClick('optimizer_copy', kind);
   };
 
+  const handleProductType = (id: ProductTypeId) => {
+    setProductType(id);
+    trackStepSelectProductType(id);
+  };
+
+  const handleWaitlist = (e: React.FormEvent) => {
+    e.preventDefault();
+    const email = waitlistEmail.trim();
+    const ok = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    if (!ok) {
+      setWaitlistError('Please enter a valid email.');
+      return;
+    }
+    setWaitlistError(null);
+    setWaitlistDone(true);
+    // intentional: no backend in MVP
+    // eslint-disable-next-line no-console
+    console.log('[waitlist_submit]', { email, product_type: productType });
+    trackWaitlistSubmit(email, { product_type: productType });
+  };
+
   return (
     <section ref={ref} id="optimizer" className="mt-2 rounded-3xl border border-white/10 bg-white/5 p-5">
-      <h2 className="text-lg font-semibold">Paste your current Etsy listing</h2>
+      <h2 className="text-lg font-semibold">Step 1 · Paste your current Etsy listing</h2>
       <p className="mt-1 text-xs text-slate-400">
-        Title, tags, and description are fine in one box. We'll structure the rewrite.
+        Title, tags, and description are fine in one box. We will structure the rewrite.
       </p>
       <textarea
         value={input}
         onChange={(e) => setInput(e.target.value)}
         placeholder="Paste your title, tags, description here..."
-        className="mt-3 h-40 w-full resize-none rounded-2xl border border-white/10 bg-slate-950/80 p-3 text-sm text-slate-100 placeholder:text-slate-500 focus:border-amber-300/40 focus:outline-none"
+        className="mt-3 h-36 w-full resize-none rounded-2xl border border-white/10 bg-slate-950/80 p-3 text-sm text-slate-100 placeholder:text-slate-500 focus:border-amber-300/40 focus:outline-none"
       />
-      <div className="mt-3 flex items-center gap-2">
+
+      <div className="mt-5">
+        <h3 className="text-sm font-semibold">Step 2 · Choose product type</h3>
+        <p className="mt-1 text-[11px] text-slate-400">
+          Picks the keyword pattern we use for your rewrite.
+        </p>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {PRODUCT_TYPES.map((p) => {
+            const active = p.id === productType;
+            return (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => handleProductType(p.id)}
+                className={
+                  'rounded-full border px-3 py-1.5 text-xs ' +
+                  (active
+                    ? 'border-amber-300 bg-amber-300/15 text-amber-100'
+                    : 'border-white/10 bg-white/5 text-slate-200')
+                }
+              >
+                {p.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="mt-5 space-y-3">
+        <h3 className="text-sm font-semibold">Step 3 · Pick a path</h3>
         <button
           type="button"
           onClick={handleSubmit}
-          className="flex-1 rounded-2xl bg-amber-400 px-4 py-3 text-sm font-semibold text-slate-950 active:scale-[0.99] disabled:opacity-50"
+          className="w-full rounded-2xl bg-amber-400 px-4 py-3 text-sm font-semibold text-slate-950 active:scale-[0.99] disabled:opacity-50"
           disabled={!input.trim()}
         >
-          Rewrite for Etsy search
+          Rewrite one listing
+        </button>
+        <button
+          type="button"
+          onClick={handleSubmit}
+          className="w-full rounded-2xl border border-amber-300/40 bg-white/5 px-4 py-3 text-sm font-semibold text-amber-100 active:scale-[0.99] disabled:opacity-50"
+          disabled={!input.trim()}
+        >
+          Run a listing check
         </button>
         <button
           type="button"
           onClick={handleSample}
-          className="rounded-2xl border border-white/10 px-3 py-3 text-xs text-slate-200"
+          className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-slate-200"
         >
-          Try sample
+          Try sample listing
         </button>
       </div>
 
       {result && (
         <div className="mt-5 space-y-4">
-          <ResultBlock label="Optimized title" value={result.title} onCopy={() => handleCopy(result.title, 'title')} />
+          <ResultBlock
+            label="Optimized title"
+            slot="proof-title"
+            value={result.title}
+            onCopy={() => handleCopy(result.title, 'title')}
+          />
           <ResultBlock
             label={`Optimized tags (${result.tags.length}/13)`}
+            slot="proof-tags"
             value={result.tags.join(', ')}
             onCopy={() => handleCopy(result.tags.join(', '), 'tags')}
           />
+          <div data-visual-slot="proof-photos" className="rounded-2xl border border-dashed border-white/15 bg-slate-950/40 p-3 text-[11px] text-slate-400">
+            Photo order suggestions appear here once visual assets are wired in.
+          </div>
           <ResultBlock
             label="Optimized description"
+            slot="proof-description"
             value={result.description}
             onCopy={() => handleCopy(result.description, 'description')}
             multiline
           />
+          <p className="text-[11px] text-slate-400">
+            Individual results vary. Review and edit before publishing on Etsy.
+          </p>
         </div>
       )}
+
+      <div className="mt-8 rounded-2xl border border-white/10 bg-slate-950/60 p-4">
+        <h3 className="text-sm font-semibold">Or join the early-access waitlist</h3>
+        <p className="mt-1 text-[11px] text-slate-400">
+          Drop your email. We will notify you when the full optimizer is live.
+        </p>
+        {waitlistDone ? (
+          <p className="mt-3 rounded-xl border border-emerald-300/30 bg-emerald-400/10 px-3 py-2 text-xs text-emerald-100">
+            You&apos;re on the list.
+          </p>
+        ) : (
+          <form onSubmit={handleWaitlist} className="mt-3 space-y-2" noValidate>
+            <input
+              type="email"
+              value={waitlistEmail}
+              onChange={(e) => setWaitlistEmail(e.target.value)}
+              placeholder="you@example.com"
+              className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-3 py-3 text-sm text-slate-100 placeholder:text-slate-500 focus:border-amber-300/40 focus:outline-none"
+            />
+            {waitlistError && (
+              <p className="text-[11px] text-rose-300">{waitlistError}</p>
+            )}
+            <button
+              type="submit"
+              className="w-full rounded-2xl bg-amber-400 px-4 py-3 text-sm font-semibold text-slate-950 active:scale-[0.99]"
+            >
+              Join waitlist
+            </button>
+          </form>
+        )}
+      </div>
     </section>
   );
 }
 
 interface ResultBlockProps {
   label: string;
+  slot: string;
   value: string;
   onCopy: () => void;
   multiline?: boolean;
 }
 
-function ResultBlock({ label, value, onCopy, multiline }: ResultBlockProps) {
+function ResultBlock({ label, slot, value, onCopy, multiline }: ResultBlockProps) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-slate-950/70 p-3">
+    <div data-visual-slot={slot} className="rounded-2xl border border-white/10 bg-slate-950/70 p-3">
       <div className="flex items-center justify-between">
         <div className="text-[11px] uppercase tracking-wide text-amber-200">{label}</div>
         <button

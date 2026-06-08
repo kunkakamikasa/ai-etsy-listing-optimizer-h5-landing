@@ -19,7 +19,7 @@ export default function StickyBar() {
           onClick={handleClick}
           className="ml-auto rounded-2xl bg-amber-400 px-4 py-2 text-xs font-semibold text-slate-950 active:scale-[0.98]"
         >
-          Optimize now
+          Rewrite now
         </a>
       </div>
     </div>
