@@ -20,22 +20,7 @@ export default function Proof() {
   const ref = useSectionImpression<HTMLElement>(() => trackSectionImpression('proof'));
   return (
     <section ref={ref} className="mt-10">
-      <h2 className="text-lg font-semibold">Before vs after</h2>
-      <p className="mt-1 text-xs text-slate-400">
-        Generic example — messy listing rewritten into clearer copy.
-      </p>
-      <div data-visual-slot="before-after-proof" className="mt-3 overflow-hidden rounded-2xl border border-white/10 bg-white/5">
-        <img
-          src="/before_after_listing_proof_1536x864_v1.png"
-          alt="Before and after Etsy-style listing cards — messy listing rewritten into a clearer one"
-          width={1536}
-          height={864}
-          loading="lazy"
-          decoding="async"
-          className="block h-auto w-full"
-        />
-      </div>
-      <h2 className="mt-8 text-lg font-semibold">Sellers using it</h2>
+      <h2 className="text-lg font-semibold">Sellers using it</h2>
       <div className="mt-4 space-y-3">
         {QUOTES.map((q) => (
           <blockquote key={q.name} className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-200">
