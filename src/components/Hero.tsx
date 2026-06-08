@@ -15,7 +15,18 @@ export default function Hero() {
 
   return (
     <section ref={ref} data-visual-slot="hero" className="pt-6 pb-4">
-      <div className="inline-flex items-center gap-2 rounded-full border border-amber-400/30 bg-amber-400/10 px-3 py-1 text-[11px] text-amber-200">
+      <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/5">
+        <img
+          src="/mobile_hero_first_screen_864x1536_v1.png"
+          alt="Phone mockup with rewritten Etsy listing — title, tags, photo order and description"
+          width={864}
+          height={1536}
+          loading="eager"
+          decoding="async"
+          className="block h-auto w-full"
+        />
+      </div>
+      <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-amber-400/30 bg-amber-400/10 px-3 py-1 text-[11px] text-amber-200">
         <span className="h-1.5 w-1.5 rounded-full bg-amber-300" />
         Built for Etsy sellers
       </div>

@@ -238,8 +238,16 @@ export default function Optimizer() {
             value={result.tags.join(', ')}
             onCopy={() => handleCopy(result.tags.join(', '), 'tags')}
           />
-          <div data-visual-slot="proof-photos" className="rounded-2xl border border-dashed border-white/15 bg-slate-950/40 p-3 text-[11px] text-slate-400">
-            Photo order suggestions appear here once visual assets are wired in.
+          <div data-visual-slot="proof-photos" className="overflow-hidden rounded-2xl border border-white/10 bg-white/5">
+            <img
+              src="/before_after_listing_proof_1536x864_v1.png"
+              alt="Before and after Etsy-style listing cards — messy listing rewritten into a clearer one"
+              width={1536}
+              height={864}
+              loading="lazy"
+              decoding="async"
+              className="block h-auto w-full"
+            />
           </div>
           <ResultBlock
             label="Optimized description"
