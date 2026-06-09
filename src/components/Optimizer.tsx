@@ -116,6 +116,21 @@ export default function Optimizer() {
     }
   }, [result, productType]);
 
+  // Consume any prefill the hero stored when scrolling here.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const prefill = sessionStorage.getItem('hero_prefill');
+      if (prefill && !input) {
+        setInput(prefill);
+        sessionStorage.removeItem('hero_prefill');
+      }
+    } catch (_e) {
+      // sessionStorage may be blocked; ignore.
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleSubmit = () => {
     if (!input.trim()) return;
     setSubmitted(true);
